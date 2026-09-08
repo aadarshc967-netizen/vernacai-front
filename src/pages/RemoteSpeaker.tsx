@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { ArrowLeft } from "lucide-react";
-const WS_URL = `ws://${window.location.hostname}:8000/ws/remote`;
+const WS_URL = `${(import.meta.env.VITE_API_URL || `http://${window.location.hostname}:8000`).replace(/^http/, "ws")}/ws/remote`;
 
 function RemoteSpeaker() {
   const [connected, setConnected] = useState(false);

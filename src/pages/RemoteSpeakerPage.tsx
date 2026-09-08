@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-const WS_URL = `ws://${window.location.hostname}:8000/ws/remote`;
-
+const WS_URL = `${(import.meta.env.VITE_API_URL || `http://${window.location.hostname}:8000`).replace(/^http/, "ws")}/ws/remote`;
 
 import {
   ArrowLeft,
@@ -73,7 +72,7 @@ const languages = [
   "Turkish",
 ];
 
-const API_URL = `http://${window.location.hostname}:8000/translate`;
+const API_URL = `${import.meta.env.VITE_API_URL || `http://${window.location.hostname}:8000`}/translate`;
 
 function RemoteSpeakerPage() {
   const [fromLanguage, setFromLanguage] = useState("English");
@@ -85,7 +84,7 @@ function RemoteSpeakerPage() {
     const createRemoteSession = async () => {
     try {
       const response = await fetch(
-        `http://${window.location.hostname}:8000/remote/create`,
+        `${import.meta.env.VITE_API_URL || `http://${window.location.hostname}:8000`}/remote/create`,
         {
           method: "POST",
           headers: {

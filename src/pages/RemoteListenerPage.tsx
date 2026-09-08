@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 
-const API_BASE = `http://${window.location.hostname}:8000`;
-const WS_BASE = `ws://${window.location.hostname}:8000/ws/remote`;
+const API_BASE = `${import.meta.env.VITE_API_URL || `http://${window.location.hostname}:8000`}`;
+const WS_BASE = `${API_BASE.replace(/^http/, "ws")}/ws/remote`;
 
 function RemoteListenerPage() {
   const [sessionCode, setSessionCode] = useState("");

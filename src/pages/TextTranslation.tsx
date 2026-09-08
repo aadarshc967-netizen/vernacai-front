@@ -12,7 +12,7 @@ import {
 } from "lucide-react";
 import { fetchLanguages, type Language } from "../data/languages";
 
-const API_URL = "http://127.0.0.1:8000/translate";
+const API_URL = `${import.meta.env.VITE_API_URL || "http://127.0.0.1:8000"}/translate`;
 
 function TextTranslation() {
   const [languages, setLanguages] = useState<Language[]>([]);

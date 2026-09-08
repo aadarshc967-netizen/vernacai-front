@@ -80,11 +80,13 @@ export default function CommunicateRoom() {
 
     setCode(savedCode);
 
-    const ws = new WebSocket(
-      `ws://${window.location.hostname}:8000/ws/communicate?code=${encodeURIComponent(
-        savedCode
-      )}`
-    );
+    const wsUrl =
+  (import.meta.env.VITE_API_URL || `http://${window.location.hostname}:8000`)
+    .replace(/^http/, "ws");
+
+const ws = new WebSocket(
+  `${wsUrl}/ws/communicate?code=${encodeURIComponent(savedCode)}`
+);
 
     wsRef.current = ws;
 

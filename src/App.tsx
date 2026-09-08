@@ -449,7 +449,7 @@ function CommunicateNow() {
   onClick={async () => {
   try {
     const response = await fetch(
-      `http://${window.location.hostname}:8000/communicate/create`,
+      `${import.meta.env.VITE_API_URL || `http://${window.location.hostname}:8000`}/communicate/create`,
       {
         method: "POST",
         headers: {
@@ -553,7 +553,7 @@ function CommunicateNow() {
 
         try {
           const response = await fetch(
-            `http://${window.location.hostname}:8000/communicate/join`,
+            `${import.meta.env.VITE_API_URL || `http://${window.location.hostname}:8000`}/communicate/join`,
             {
               method: "POST",
               headers: {
