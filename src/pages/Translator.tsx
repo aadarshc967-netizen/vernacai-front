@@ -1,3 +1,4 @@
+
 import { fetchLanguages, type Language } from "../data/languages";
 import { useEffect, useRef, useState } from "react";
 import {
@@ -9,18 +10,74 @@ import {
   Volume2,
   Sparkles,
   Loader2,
+  GraduationCap,
+  BookOpen,
+  Users,
+  Radio,
+  CheckCircle2,
+  Circle,
 } from "lucide-react";
 
+const API_URL = `${
+  import.meta.env.VITE_API_URL || "http://127.0.0.1:8000"
+}/translate`;
 
-
-const API_URL = `${import.meta.env.VITE_API_URL || "http://127.0.0.1:8000"}/translate`;
-const WS_URL = `${(import.meta.env.VITE_API_URL || `http://${window.location.hostname}:8000`).replace(/^http/, "ws")}/ws/remote`;
-
+const WS_URL = `${(
+  import.meta.env.VITE_API_URL || `http://${window.location.hostname}:8000`
+).replace(/^http/, "ws")}/ws/remote`;
 
 function Translator() {
+  // --------------------------------
+  // LANGUAGES
+  // --------------------------------
   const [languages, setLanguages] = useState<Language[]>([]);
   const [loadingLanguages, setLoadingLanguages] = useState(true);
-    // Load all languages from VernacAI API
+
+  // --------------------------------
+  // CLASSROOM INFORMATION
+  // --------------------------------
+  const [subject, setSubject] = useState("General");
+  const [lessonTopic, setLessonTopic] = useState("");
+
+  // --------------------------------
+  // LANGUAGE STATE
+  // --------------------------------
+  const [fromLanguage, setFromLanguage] = useState("English");
+  const [fromSearch, setFromSearch] = useState("");
+
+  const [toLanguage, setToLanguage] = useState("Hindi");
+  const [toSearch, setToSearch] = useState("");
+
+  // --------------------------------
+  // TRANSLATION STATE
+  // --------------------------------
+  const [listening, setListening] = useState(false);
+  const [spokenText, setSpokenText] = useState("");
+  const [translatedText, setTranslatedText] = useState("");
+  const [translating, setTranslating] = useState(false);
+  const [error, setError] = useState("");
+
+  // --------------------------------
+  // SESSION STATE
+  // --------------------------------
+  const [lessonStarted, setLessonStarted] = useState(false);
+  const [translationCount, setTranslationCount] = useState(0);
+
+  // --------------------------------
+  // REFS
+  // --------------------------------
+  const recognitionRef = useRef<any>(null);
+  const socketRef = useRef<WebSocket | null>(null);
+
+  const shouldListenRef = useRef(false);
+  const finalSpeechRef = useRef("");
+  const speechQueueRef = useRef<string[]>([]);
+  const speakingRef = useRef(false);
+  const lastTranslatedRef = useRef("");
+
+  // --------------------------------
+  // LOAD LANGUAGES
+  // --------------------------------
   useEffect(() => {
     const loadLanguages = async () => {
       setLoadingLanguages(true);
@@ -30,7 +87,6 @@ function Translator() {
       setLanguages(data);
       setLoadingLanguages(false);
 
-      // Default languages
       if (data.length > 0) {
         const english = data.find(
           (language) => language.name === "English"
@@ -52,104 +108,99 @@ function Translator() {
 
     loadLanguages();
   }, []);
-  const [fromLanguage, setFromLanguage] = useState("English");
-  const [fromSearch, setFromSearch] = useState("");
-  const [toLanguage, setToLanguage] = useState("Hindi");
-  const [toSearch, setToSearch] = useState("");
-
-  const [listening, setListening] = useState(false);
-  const [spokenText, setSpokenText] = useState("");
-  const [translatedText, setTranslatedText] = useState("");
-  const [translating, setTranslating] = useState(false);
-  const [error, setError] = useState("");
-
-  const recognitionRef = useRef<any>(null);
-  const socketRef = useRef<WebSocket | null>(null);
-  const shouldListenRef = useRef(false);
-  const finalSpeechRef = useRef("");
-  const speechQueueRef = useRef<string[]>([]);
-  const speakingRef = useRef(false);
-  const lastTranslatedRef = useRef("");
-  const filteredFromLanguages = languages.filter((language) =>
-  language.name.toLowerCase().includes(fromSearch.toLowerCase())
-  
-);
-const filteredToLanguages = languages.filter((language) =>
-  language.name.toLowerCase().includes(toSearch.toLowerCase())
-);
 
   // --------------------------------
-  // GET LANGUAGE CODE
+  // FILTER LANGUAGES
+  // --------------------------------
+  const filteredFromLanguages = languages.filter((language) =>
+    language.name.toLowerCase().includes(fromSearch.toLowerCase())
+  );
+
+  const filteredToLanguages = languages.filter((language) =>
+    language.name.toLowerCase().includes(toSearch.toLowerCase())
+  );
+
+  // --------------------------------
+  // SPEECH LANGUAGE CODES
   // --------------------------------
   const getLanguageCode = (name: string) => {
-  const speechCodes: Record<string, string> = {
-    English: "en-IN",
-    Hindi: "hi-IN",
-    Nepali: "ne-NP",
-    Tamil: "ta-IN",
-    Telugu: "te-IN",
-    Kannada: "kn-IN",
-    Malayalam: "ml-IN",
-    Bengali: "bn-IN",
-    Assamese: "as-IN",
-    Marathi: "mr-IN",
-    Gujarati: "gu-IN",
-    Punjabi: "pa-IN",
-    Odia: "or-IN",
-    Urdu: "ur-IN",
-    Sanskrit: "sa-IN",
-    Chinese: "zh-CN",
-    "Chinese (Simplified)": "zh-CN",
-    "Chinese (Traditional)": "zh-TW",
-    Japanese: "ja-JP",
-    Korean: "ko-KR",
-    Thai: "th-TH",
-    Vietnamese: "vi-VN",
-    Indonesian: "id-ID",
-    Malay: "ms-MY",
-    French: "fr-FR",
-    German: "de-DE",
-    Spanish: "es-ES",
-    Portuguese: "pt-PT",
-    Italian: "it-IT",
-    Dutch: "nl-NL",
-    Russian: "ru-RU",
-    Ukrainian: "uk-UA",
-    Turkish: "tr-TR",
-    Arabic: "ar-SA",
-    Persian: "fa-IR",
-    Hebrew: "he-IL",
-    Swahili: "sw-KE",
+    const speechCodes: Record<string, string> = {
+      English: "en-IN",
+      Hindi: "hi-IN",
+      Nepali: "ne-NP",
+      Tamil: "ta-IN",
+      Telugu: "te-IN",
+      Kannada: "kn-IN",
+      Malayalam: "ml-IN",
+      Bengali: "bn-IN",
+      Assamese: "as-IN",
+      Marathi: "mr-IN",
+      Gujarati: "gu-IN",
+      Punjabi: "pa-IN",
+      Odia: "or-IN",
+      Urdu: "ur-IN",
+      Sanskrit: "sa-IN",
+
+      Chinese: "zh-CN",
+      "Chinese (Simplified)": "zh-CN",
+      "Chinese (Traditional)": "zh-TW",
+
+      Japanese: "ja-JP",
+      Korean: "ko-KR",
+      Thai: "th-TH",
+      Vietnamese: "vi-VN",
+      Indonesian: "id-ID",
+      Malay: "ms-MY",
+
+      French: "fr-FR",
+      German: "de-DE",
+      Spanish: "es-ES",
+      Portuguese: "pt-PT",
+      Italian: "it-IT",
+      Dutch: "nl-NL",
+
+      Russian: "ru-RU",
+      Ukrainian: "uk-UA",
+      Turkish: "tr-TR",
+      Arabic: "ar-SA",
+      Persian: "fa-IR",
+      Hebrew: "he-IL",
+      Swahili: "sw-KE",
+    };
+
+    return speechCodes[name] || "";
   };
 
-  return speechCodes[name] || "";
-};
-// --------------------------------
-// CONNECT TO MOBILE REMOTE SPEAKER
-// --------------------------------
-useEffect(() => {
-  const socket = new WebSocket(WS_URL);
-
-  socketRef.current = socket;
-
-  socket.onopen = () => {
-    console.log("VernacAI mobile speaker connected");
-  };
-
-  socket.onclose = () => {
-    console.log("Mobile speaker disconnected");
-  };
-
-  socket.onerror = (error) => {
-    console.error("Mobile speaker WebSocket error:", error);
-  };
-
-  return () => {
-    socket.close();
-  };
-}, []); 
   // --------------------------------
-  // SPEAK TRANSLATION QUEUE
+  // MOBILE REMOTE SPEAKER
+  // --------------------------------
+  useEffect(() => {
+    const socket = new WebSocket(WS_URL);
+
+    socketRef.current = socket;
+
+    socket.onopen = () => {
+      console.log("VernacAI mobile speaker connected");
+    };
+
+    socket.onclose = () => {
+      console.log("Mobile speaker disconnected");
+    };
+
+    socket.onerror = (socketError) => {
+      console.error(
+        "Mobile speaker WebSocket error:",
+        socketError
+      );
+    };
+
+    return () => {
+      socket.close();
+    };
+  }, []);
+
+  // --------------------------------
+  // SPEECH QUEUE
   // --------------------------------
   const speakNext = () => {
     if (speakingRef.current) return;
@@ -165,8 +216,6 @@ useEffect(() => {
     const speech = new SpeechSynthesisUtterance(nextText);
 
     speech.lang = getLanguageCode(toLanguage);
-
-    // Slightly faster for live translation
     speech.rate = 1.05;
     speech.pitch = 1;
     speech.volume = 1;
@@ -174,10 +223,9 @@ useEffect(() => {
     speech.onend = () => {
       speakingRef.current = false;
 
-      // Small gap between translated sentences
       setTimeout(() => {
         speakNext();
-      }, 700);
+      }, 500);
     };
 
     speech.onerror = () => {
@@ -192,14 +240,14 @@ useEffect(() => {
   };
 
   // --------------------------------
-  // REAL API TRANSLATION
+  // TRANSLATE TEXT USING API
   // --------------------------------
   const translateText = async (text: string) => {
     const cleanText = text.trim();
 
     if (!cleanText) return;
 
-    // Avoid translating exactly the same chunk twice
+    // Prevent duplicate translation
     if (cleanText === lastTranslatedRef.current) {
       return;
     }
@@ -231,34 +279,44 @@ useEffect(() => {
       if (data.translated_text) {
         const translated = data.translated_text.trim();
 
-        // Add translated text to screen
+        // Add translated text
         setTranslatedText((previous) =>
-          previous ? `${previous} ${translated}` : translated
+          previous
+            ? `${previous} ${translated}`
+            : translated
         );
-        // Automatically speak translated text
-const speech = new SpeechSynthesisUtterance(translated);
 
-speech.lang = getLanguageCode(toLanguage);
-speech.rate = 1.05;
-speech.pitch = 1;
-speech.volume = 1;
+        setTranslationCount((previous) => previous + 1);
 
-window.speechSynthesis.speak(speech);
+        // --------------------------------
+        // TEXT TO SPEECH
+        // --------------------------------
+        const speech = new SpeechSynthesisUtterance(
+          translated
+        );
 
-        // Add translation to voice queue
-       // Send translated text to mobile remote speaker
-if (
-  socketRef.current &&
-  socketRef.current.readyState === WebSocket.OPEN
-) {
-  socketRef.current.send(
-    JSON.stringify({
-      type: "translation",
-      text: translated,
-      language: toLanguage,
-    })
-  );
-}
+        speech.lang = getLanguageCode(toLanguage);
+        speech.rate = 1.05;
+        speech.pitch = 1;
+        speech.volume = 1;
+
+        window.speechSynthesis.speak(speech);
+
+        // --------------------------------
+        // REMOTE SPEAKER
+        // --------------------------------
+        if (
+          socketRef.current &&
+          socketRef.current.readyState === WebSocket.OPEN
+        ) {
+          socketRef.current.send(
+            JSON.stringify({
+              type: "translation",
+              text: translated,
+              language: toLanguage,
+            })
+          );
+        }
       } else {
         setError(
           "Translation response mein translated_text nahi mila."
@@ -305,6 +363,7 @@ if (
     // --------------------------------
     recognition.onstart = () => {
       setListening(true);
+      setLessonStarted(true);
       setError("");
     };
 
@@ -321,30 +380,32 @@ if (
       ) {
         const result = event.results[i];
 
-        const transcript = result[0].transcript.trim();
+        const transcript =
+          result[0].transcript.trim();
 
         if (!transcript) continue;
 
         // --------------------------------
-        // FINAL MEANINGFUL CHUNK
+        // FINAL SPEECH
         // --------------------------------
         if (result.isFinal) {
           finalSpeechRef.current +=
-            (finalSpeechRef.current ? " " : "") + transcript;
+            (finalSpeechRef.current ? " " : "") +
+            transcript;
 
           setSpokenText(finalSpeechRef.current);
 
-          // Send meaningful completed phrase to API
+          // Translate completed phrase
           translateText(transcript);
         } else {
           // --------------------------------
-          // LIVE INTERIM SPEECH
+          // INTERIM SPEECH
           // --------------------------------
           interimText += transcript + " ";
         }
       }
 
-      // Show speech while user is still talking
+      // Show live speech
       if (interimText.trim()) {
         setSpokenText(
           `${finalSpeechRef.current} ${interimText.trim()}`.trim()
@@ -386,8 +447,6 @@ if (
         return;
       }
 
-      // Create a fresh recognition session
-      // instead of restarting the old one
       setTimeout(() => {
         if (!shouldListenRef.current) return;
 
@@ -406,7 +465,7 @@ if (
   };
 
   // --------------------------------
-  // START LISTENING
+  // START CLASSROOM
   // --------------------------------
   const startListening = () => {
     setSpokenText("");
@@ -422,13 +481,16 @@ if (
 
     speakingRef.current = false;
 
+    setTranslationCount(0);
+    setLessonStarted(true);
+
     shouldListenRef.current = true;
 
     startRecognition();
   };
 
   // --------------------------------
-  // STOP LISTENING
+  // STOP CLASSROOM
   // --------------------------------
   const stopListening = () => {
     shouldListenRef.current = false;
@@ -446,7 +508,6 @@ if (
       recognitionRef.current = null;
     }
 
-    // Stop any queued voice
     speechQueueRef.current = [];
 
     window.speechSynthesis.cancel();
@@ -457,7 +518,24 @@ if (
   };
 
   // --------------------------------
-  // MANUAL TEXT TO SPEECH
+  // END LESSON
+  // --------------------------------
+  const endLesson = () => {
+    stopListening();
+
+    setLessonStarted(false);
+
+    setSpokenText("");
+    setTranslatedText("");
+
+    finalSpeechRef.current = "";
+    lastTranslatedRef.current = "";
+
+    setTranslationCount(0);
+  };
+
+  // --------------------------------
+  // MANUAL TRANSLATION SPEECH
   // --------------------------------
   const speakTranslation = () => {
     if (!translatedText.trim()) return;
@@ -487,137 +565,362 @@ if (
   // UI
   // --------------------------------
   return (
-    <div className="min-h-screen bg-slate-950 px-6 py-10 text-white">
-      <div className="mx-auto max-w-6xl">
+    <div className="min-h-screen bg-slate-950 px-4 py-6 text-white sm:px-6 sm:py-10">
 
-        {/* HEADER */}
-        <div className="mb-6 flex justify-start">
-  <button
-    onClick={() => {
-      window.location.href = "/";
-    }}
-    className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-semibold text-slate-300 transition hover:bg-white/10 hover:text-white"
-  >
-    <ArrowLeft className="h-4 w-4" />
-    Back to Home
-  </button>
-</div>
-        <div className="mb-10 text-center">
+      <div className="mx-auto max-w-7xl">
 
-          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-cyan-400/10">
-            <Languages className="h-7 w-7 text-cyan-400" />
+        {/* --------------------------------
+            BACK BUTTON
+        -------------------------------- */}
+        <div className="mb-6">
+          <button
+            onClick={() => {
+              window.location.href = "/";
+            }}
+            className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-semibold text-slate-300 transition hover:bg-white/10 hover:text-white"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Back to Home
+          </button>
+        </div>
+
+        {/* --------------------------------
+            HEADER
+        -------------------------------- */}
+        <div className="mb-8 text-center">
+
+          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-cyan-400/10">
+            <GraduationCap className="h-8 w-8 text-cyan-400" />
           </div>
 
-          <p className="text-sm font-semibold uppercase tracking-[0.2em] text-cyan-400">
-            VernacAI Live
-          </p>
+          <div className="mb-3 flex items-center justify-center gap-2 text-sm font-semibold uppercase tracking-[0.2em] text-cyan-400">
+            <Radio className="h-4 w-4" />
+            VernacAI Live Classroom
+          </div>
 
-          <h1 className="mt-3 text-4xl font-black sm:text-5xl">
-            Real-Time Speech Translation
+          <h1 className="text-4xl font-black sm:text-5xl">
+            Learn Without
+            <span className="text-cyan-400">
+              {" "}Language Barriers
+            </span>
           </h1>
 
           <p className="mx-auto mt-4 max-w-2xl text-slate-400">
-            Speak continuously. VernacAI automatically
-            converts your speech into your preferred
-            language.
+            Teacher speaks naturally. VernacAI converts the lesson
+            into the student's preferred vernacular language in real time.
           </p>
+
         </div>
 
-        {/* LANGUAGE SELECTOR */}
-        <div className="mb-6 grid gap-4 md:grid-cols-[1fr_auto_1fr] md:items-end">
+        {/* --------------------------------
+            CLASSROOM SETUP
+        -------------------------------- */}
+        <div className="mb-6 rounded-3xl border border-white/10 bg-white/[0.04] p-6">
 
-          {/* FROM LANGUAGE */}
-          <div>
-            <label className="mb-2 block text-sm text-slate-400">
-              Speaking Language
-            </label>
-            <input
-              type="text"
-              placeholder="Search language..."
-              value={fromSearch}
-              onChange={(e) => setFromSearch(e.target.value)}
-              disabled={listening || loadingLanguages}
-            />
-            <select
-              value={fromLanguage}
-              disabled={listening}
-              onChange={(e) =>
-                setFromLanguage(e.target.value)
-              }
-              className="w-full rounded-2xl border border-white/10 bg-white/5 px-5 py-4 text-white outline-none focus:border-cyan-400"
-            >
-              {filteredFromLanguages.map((language) => (
-                <option
-                  key={language.name}
-                  value={language.name}
-                  className="bg-slate-900"
-                >
-                  {language.name}
+          <div className="mb-5 flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-400/10">
+              <BookOpen className="h-5 w-5 text-violet-300" />
+            </div>
+
+            <div>
+              <h2 className="font-bold">
+                Classroom Setup
+              </h2>
+
+              <p className="text-sm text-slate-500">
+                Add basic lesson information before starting.
+              </p>
+            </div>
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-2">
+
+            {/* SUBJECT */}
+            <div>
+              <label className="mb-2 block text-sm font-medium text-slate-400">
+                Subject
+              </label>
+
+              <select
+                value={subject}
+                onChange={(e) =>
+                  setSubject(e.target.value)
+                }
+                disabled={listening}
+                className="w-full rounded-2xl border border-white/10 bg-slate-900 px-5 py-4 text-white outline-none focus:border-cyan-400 disabled:opacity-50"
+              >
+                <option className="bg-slate-900">
+                  General
                 </option>
-              ))}
-            </select>
+
+                <option className="bg-slate-900">
+                  Mathematics
+                </option>
+
+                <option className="bg-slate-900">
+                  Science
+                </option>
+
+                <option className="bg-slate-900">
+                  Computer Science
+                </option>
+
+                <option className="bg-slate-900">
+                  Social Science
+                </option>
+
+                <option className="bg-slate-900">
+                  English
+                </option>
+
+                <option className="bg-slate-900">
+                  Other
+                </option>
+              </select>
+            </div>
+
+            {/* TOPIC */}
+            <div>
+              <label className="mb-2 block text-sm font-medium text-slate-400">
+                Lesson Topic
+              </label>
+
+              <input
+                type="text"
+                value={lessonTopic}
+                onChange={(e) =>
+                  setLessonTopic(e.target.value)
+                }
+                disabled={listening}
+                placeholder="Example: Photosynthesis"
+                className="w-full rounded-2xl border border-white/10 bg-slate-900 px-5 py-4 text-white placeholder:text-slate-600 outline-none focus:border-cyan-400 disabled:opacity-50"
+              />
+            </div>
+
           </div>
 
-          {/* ARROW */}
-          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full border border-cyan-400/20 bg-cyan-400/10">
-            <ArrowDown className="h-5 w-5 text-cyan-400 md:rotate-[-90deg]" />
-          </div>
-
-          {/* TO LANGUAGE */}
-          <div>
-            <label className="mb-2 block text-sm text-slate-400">
-              Translate To
-            </label>
-          <input
-            type="text"
-            placeholder="Search language..."
-            value={toSearch}
-            onChange={(e) => setToSearch(e.target.value)}
-            disabled={listening || loadingLanguages}
-            />
-            <select
-              value={toLanguage}
-              disabled={listening || loadingLanguages}
-              onChange={(e) =>
-                setToLanguage(e.target.value)
-              }
-              className="w-full rounded-2xl border border-white/10 bg-white/5 px-5 py-4 text-white outline-none focus:border-cyan-400"
-            >
-              {loadingLanguages ? (
-  <option className="bg-slate-900">
-    Loading languages...
-  </option>
-) : (
-  filteredToLanguages.map((language) => (
-    <option
-      key={language.code}
-      value={language.name}
-      className="bg-slate-900"
-    >
-      {language.name}
-    </option>
-  ))
-)}
-            </select>
-          </div>
         </div>
 
-        {/* TRANSLATION BOXES */}
+        {/* --------------------------------
+            CLASSROOM STATUS
+        -------------------------------- */}
+        <div className="mb-6 grid gap-4 sm:grid-cols-3">
+
+          <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+
+            <div className="flex items-center gap-3">
+
+              {listening ? (
+                <CheckCircle2 className="h-5 w-5 text-emerald-400" />
+              ) : (
+                <Circle className="h-5 w-5 text-slate-600" />
+              )}
+
+              <div>
+                <p className="text-xs uppercase tracking-wider text-slate-500">
+                  Classroom
+                </p>
+
+                <p className="mt-1 font-semibold">
+                  {listening ? "Live" : "Ready"}
+                </p>
+              </div>
+
+            </div>
+
+          </div>
+
+          <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+
+            <div className="flex items-center gap-3">
+
+              <Languages className="h-5 w-5 text-cyan-400" />
+
+              <div>
+                <p className="text-xs uppercase tracking-wider text-slate-500">
+                  Student Language
+                </p>
+
+                <p className="mt-1 font-semibold">
+                  {toLanguage}
+                </p>
+              </div>
+
+            </div>
+
+          </div>
+
+          <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+
+            <div className="flex items-center gap-3">
+
+              <Users className="h-5 w-5 text-emerald-400" />
+
+              <div>
+                <p className="text-xs uppercase tracking-wider text-slate-500">
+                  Translations
+                </p>
+
+                <p className="mt-1 font-semibold">
+                  {translationCount}
+                </p>
+              </div>
+
+            </div>
+
+          </div>
+
+        </div>
+
+        {/* --------------------------------
+            LANGUAGE SELECTOR
+        -------------------------------- */}
+        <div className="mb-6 rounded-3xl border border-white/10 bg-white/[0.04] p-6">
+
+          <div className="mb-5 flex items-center gap-3">
+            <Languages className="h-5 w-5 text-cyan-400" />
+
+            <div>
+              <h2 className="font-bold">
+                Language Preferences
+              </h2>
+
+              <p className="text-sm text-slate-500">
+                Choose the language spoken by the teacher and the
+                language preferred by the student.
+              </p>
+            </div>
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-[1fr_auto_1fr] md:items-end">
+
+            {/* FROM */}
+            <div>
+
+              <label className="mb-2 block text-sm text-slate-400">
+                Teacher Speaking Language
+              </label>
+
+              <input
+                type="text"
+                placeholder="Search language..."
+                value={fromSearch}
+                onChange={(e) =>
+                  setFromSearch(e.target.value)
+                }
+                disabled={listening || loadingLanguages}
+                className="mb-2 w-full rounded-xl border border-white/10 bg-slate-900 px-4 py-3 text-sm text-white placeholder:text-slate-600 outline-none focus:border-cyan-400"
+              />
+
+              <select
+                value={fromLanguage}
+                disabled={listening || loadingLanguages}
+                onChange={(e) =>
+                  setFromLanguage(e.target.value)
+                }
+                className="w-full rounded-2xl border border-white/10 bg-slate-900 px-5 py-4 text-white outline-none focus:border-cyan-400"
+              >
+                {loadingLanguages ? (
+                  <option className="bg-slate-900">
+                    Loading languages...
+                  </option>
+                ) : (
+                  filteredFromLanguages.map(
+                    (language) => (
+                      <option
+                        key={language.code}
+                        value={language.name}
+                        className="bg-slate-900"
+                      >
+                        {language.name}
+                      </option>
+                    )
+                  )
+                )}
+              </select>
+
+            </div>
+
+            {/* ARROW */}
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full border border-cyan-400/20 bg-cyan-400/10">
+              <ArrowDown className="h-5 w-5 text-cyan-400 md:rotate-[-90deg]" />
+            </div>
+
+            {/* TO */}
+            <div>
+
+              <label className="mb-2 block text-sm text-slate-400">
+                Student Preferred Language
+              </label>
+
+              <input
+                type="text"
+                placeholder="Search language..."
+                value={toSearch}
+                onChange={(e) =>
+                  setToSearch(e.target.value)
+                }
+                disabled={listening || loadingLanguages}
+                className="mb-2 w-full rounded-xl border border-white/10 bg-slate-900 px-4 py-3 text-sm text-white placeholder:text-slate-600 outline-none focus:border-cyan-400"
+              />
+
+              <select
+                value={toLanguage}
+                disabled={listening || loadingLanguages}
+                onChange={(e) =>
+                  setToLanguage(e.target.value)
+                }
+                className="w-full rounded-2xl border border-white/10 bg-slate-900 px-5 py-4 text-white outline-none focus:border-cyan-400"
+              >
+                {loadingLanguages ? (
+                  <option className="bg-slate-900">
+                    Loading languages...
+                  </option>
+                ) : (
+                  filteredToLanguages.map(
+                    (language) => (
+                      <option
+                        key={language.code}
+                        value={language.name}
+                        className="bg-slate-900"
+                      >
+                        {language.name}
+                      </option>
+                    )
+                  )
+                )}
+              </select>
+
+            </div>
+
+          </div>
+
+        </div>
+
+        {/* --------------------------------
+            TRANSLATION AREA
+        -------------------------------- */}
         <div className="grid gap-6 lg:grid-cols-2">
 
-          {/* SPOKEN TEXT */}
+          {/* TEACHER SPEECH */}
           <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-6 backdrop-blur-xl">
 
             <div className="mb-5 flex items-center justify-between">
 
               <div>
-                <p className="text-sm text-slate-500">
-                  Live Speech
-                </p>
+
+                <div className="flex items-center gap-2">
+                  <Mic className="h-4 w-4 text-cyan-400" />
+
+                  <p className="text-sm text-slate-500">
+                    Teacher's Lesson
+                  </p>
+                </div>
 
                 <h2 className="mt-1 text-xl font-bold">
                   {fromLanguage}
                 </h2>
+
               </div>
 
               <div
@@ -635,19 +938,25 @@ if (
                   }`}
                 />
               </div>
+
             </div>
 
-            <div className="min-h-[250px] rounded-2xl border border-white/10 bg-slate-900/70 p-6">
+            <div className="min-h-[300px] rounded-2xl border border-white/10 bg-slate-900/70 p-6">
 
               {spokenText ? (
                 <p className="text-xl leading-8 text-slate-200">
                   {spokenText}
                 </p>
               ) : (
-                <p className="text-slate-600">
-                  Start speaking and your words
-                  will appear here...
-                </p>
+                <div className="flex min-h-[250px] flex-col items-center justify-center text-center">
+
+                  <Mic className="mb-4 h-10 w-10 text-slate-700" />
+
+                  <p className="text-slate-600">
+                    Teacher's speech will appear here...
+                  </p>
+
+                </div>
               )}
 
               {listening && (
@@ -655,46 +964,65 @@ if (
 
                   <span className="h-2 w-2 animate-pulse rounded-full bg-red-400" />
 
-                  Listening continuously...
+                  Listening to the lesson...
+
                 </div>
               )}
+
             </div>
+
           </div>
 
-          {/* TRANSLATED TEXT */}
+          {/* STUDENT TRANSLATION */}
           <div className="rounded-3xl border border-cyan-400/20 bg-cyan-400/[0.04] p-6 backdrop-blur-xl">
 
             <div className="mb-5 flex items-center justify-between">
 
               <div>
-                <p className="text-sm text-slate-500">
-                  Automatic AI Translation
-                </p>
+
+                <div className="flex items-center gap-2">
+
+                  <Sparkles className="h-4 w-4 text-cyan-400" />
+
+                  <p className="text-sm text-slate-500">
+                    VernacAI Translation
+                  </p>
+
+                </div>
 
                 <h2 className="mt-1 text-xl font-bold">
                   {toLanguage}
                 </h2>
+
               </div>
 
               <button
                 onClick={speakTranslation}
-                disabled={listening || loadingLanguages}
+                disabled={!translatedText.trim() || translating}
                 className="flex h-11 w-11 items-center justify-center rounded-xl bg-cyan-400/10 text-cyan-400 transition hover:bg-cyan-400/20 disabled:cursor-not-allowed disabled:opacity-30"
+                title="Listen to translation"
               >
                 <Volume2 className="h-5 w-5" />
               </button>
+
             </div>
 
-            <div className="min-h-[250px] rounded-2xl border border-cyan-400/10 bg-slate-900/70 p-6">
+            <div className="min-h-[300px] rounded-2xl border border-cyan-400/10 bg-slate-900/70 p-6">
 
               {translatedText ? (
                 <p className="text-xl leading-8 text-white">
                   {translatedText}
                 </p>
               ) : (
-                <p className="text-slate-600">
-                  Translation will appear automatically...
-                </p>
+                <div className="flex min-h-[250px] flex-col items-center justify-center text-center">
+
+                  <Languages className="mb-4 h-10 w-10 text-cyan-400/20" />
+
+                  <p className="text-slate-600">
+                    Vernacular translation will appear here...
+                  </p>
+
+                </div>
               )}
 
               {translating && (
@@ -702,14 +1030,20 @@ if (
 
                   <Loader2 className="h-4 w-4 animate-spin" />
 
-                  Translating...
+                  VernacAI is translating the lesson...
+
                 </div>
               )}
+
             </div>
+
           </div>
+
         </div>
 
-        {/* MICROPHONE BUTTON */}
+        {/* --------------------------------
+            MAIN MICROPHONE BUTTON
+        -------------------------------- */}
         <div className="mt-10 flex flex-col items-center">
 
           <button
@@ -718,65 +1052,187 @@ if (
                 ? stopListening
                 : startListening
             }
-            className={`flex h-24 w-24 items-center justify-center rounded-full transition duration-300 ${
+            disabled={loadingLanguages}
+            className={`flex h-24 w-24 items-center justify-center rounded-full transition duration-300 disabled:cursor-not-allowed disabled:opacity-50 ${
               listening
-                ? "bg-red-500 shadow-2xl shadow-red-500/30"
+                ? "bg-red-500 shadow-2xl shadow-red-500/30 hover:bg-red-400"
                 : "bg-gradient-to-br from-cyan-400 to-blue-600 shadow-2xl shadow-cyan-500/30 hover:scale-110"
             }`}
           >
+
             {listening ? (
               <MicOff className="h-9 w-9" />
             ) : (
               <Mic className="h-9 w-9" />
             )}
+
           </button>
 
           <p className="mt-5 font-semibold">
             {listening
-              ? "Stop Listening"
-              : "Start Speaking"}
+              ? "Stop Classroom"
+              : "Start Live Classroom"}
           </p>
 
-          <p className="mt-2 text-sm text-slate-500">
+          <p className="mt-2 text-center text-sm text-slate-500">
             {listening
-              ? "Keep speaking — translation is automatic"
-              : "Tap once and start speaking"}
+              ? "Teacher can keep speaking — translation is automatic"
+              : "Tap once to begin the live lesson"}
           </p>
+
         </div>
 
-        {/* ERROR */}
+        {/* --------------------------------
+            END LESSON
+        -------------------------------- */}
+        {lessonStarted && !listening && (
+          <div className="mt-6 flex justify-center">
+
+            <button
+              onClick={endLesson}
+              className="rounded-xl border border-white/10 bg-white/5 px-5 py-3 text-sm font-semibold text-slate-300 transition hover:bg-white/10 hover:text-white"
+            >
+              Reset Classroom
+            </button>
+
+          </div>
+        )}
+
+        {/* --------------------------------
+            ERROR
+        -------------------------------- */}
         {error && (
           <div className="mx-auto mt-8 max-w-2xl rounded-2xl border border-red-400/20 bg-red-400/10 p-4 text-center text-sm text-red-300">
             {error}
           </div>
         )}
 
-        {/* FLOW */}
-        <div className="mx-auto mt-10 flex max-w-2xl flex-wrap items-center justify-center gap-3 rounded-2xl border border-white/10 bg-white/[0.03] p-4 text-sm text-slate-400">
+        {/* --------------------------------
+            LIVE FLOW
+        -------------------------------- */}
+        <div className="mx-auto mt-10 max-w-4xl rounded-3xl border border-white/10 bg-white/[0.03] p-5">
 
-          <Mic className="h-4 w-4 text-cyan-400" />
+          <div className="mb-4 flex items-center justify-center gap-2 text-sm font-semibold text-slate-300">
+            <GraduationCap className="h-4 w-4 text-cyan-400" />
+            Live Classroom Flow
+          </div>
 
-          Speech
+          <div className="flex flex-wrap items-center justify-center gap-3 text-sm text-slate-400">
 
-          <span>→</span>
+            <div className="flex items-center gap-2 rounded-xl bg-white/5 px-4 py-2">
+              <Mic className="h-4 w-4 text-cyan-400" />
+              Teacher Speech
+            </div>
 
-          <Sparkles className="h-4 w-4 text-cyan-400" />
+            <span>→</span>
 
-          AI
+            <div className="flex items-center gap-2 rounded-xl bg-white/5 px-4 py-2">
+              <Sparkles className="h-4 w-4 text-cyan-400" />
+              AI Processing
+            </div>
 
-          <span>→</span>
+            <span>→</span>
 
-          Languages
+            <div className="flex items-center gap-2 rounded-xl bg-white/5 px-4 py-2">
+              <Languages className="h-4 w-4 text-cyan-400" />
+              {toLanguage}
+            </div>
 
-          <span>→</span>
+            <span>→</span>
 
-          <Volume2 className="h-4 w-4 text-cyan-400" />
+            <div className="flex items-center gap-2 rounded-xl bg-white/5 px-4 py-2">
+              <Volume2 className="h-4 w-4 text-cyan-400" />
+              Student Audio
+            </div>
 
-          Voice
+          </div>
+
         </div>
+
+        {/* --------------------------------
+            LESSON INFO
+        -------------------------------- */}
+        <div className="mt-8 grid gap-4 md:grid-cols-3">
+
+          <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5">
+
+            <BookOpen className="h-5 w-5 text-violet-400" />
+
+            <p className="mt-3 text-xs uppercase tracking-wider text-slate-500">
+              Subject
+            </p>
+
+            <p className="mt-1 font-semibold">
+              {subject}
+            </p>
+
+          </div>
+
+          <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5">
+
+            <GraduationCap className="h-5 w-5 text-cyan-400" />
+
+            <p className="mt-3 text-xs uppercase tracking-wider text-slate-500">
+              Lesson
+            </p>
+
+            <p className="mt-1 font-semibold">
+              {lessonTopic || "Not specified"}
+            </p>
+
+          </div>
+
+          <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5">
+
+            <Users className="h-5 w-5 text-emerald-400" />
+
+            <p className="mt-3 text-xs uppercase tracking-wider text-slate-500">
+              Classroom Mode
+            </p>
+
+            <p className="mt-1 font-semibold">
+              Real-Time Translation
+            </p>
+
+          </div>
+
+        </div>
+
+        {/* --------------------------------
+            FOOTER
+        -------------------------------- */}
+        <div className="mt-12 border-t border-white/10 pt-8 text-center">
+
+          <div className="flex items-center justify-center gap-2 text-slate-400">
+
+            <GlobeIcon />
+
+            <span className="font-semibold">
+              VernacAI
+            </span>
+
+          </div>
+
+          <p className="mt-2 text-xs text-slate-600">
+            Real-time vernacular classroom assistant
+          </p>
+
+        </div>
+
       </div>
+
     </div>
   );
 }
 
+// --------------------------------
+// SIMPLE FOOTER ICON
+// --------------------------------
+function GlobeIcon() {
+  return (
+    <Languages className="h-5 w-5 text-cyan-300" />
+  );
+}
+
 export default Translator;
+
