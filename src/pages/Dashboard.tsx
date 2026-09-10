@@ -62,7 +62,7 @@ function Dashboard() {
             </p>
 
             <button
-              onClick={() => goTo("/translator")}
+              onClick={() => goTo("/live-classroom")}
               className="mt-6 flex w-full items-center justify-center gap-2 rounded-xl bg-cyan-400 px-4 py-3 font-semibold text-slate-950 transition hover:bg-cyan-300"
             >
               Start Classroom
@@ -88,7 +88,7 @@ function Dashboard() {
             </p>
 
             <button
-              onClick={() => goTo("/translator")}
+              onClick={() => goTo("/listening")}
               className="mt-6 flex w-full items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-3 font-semibold text-slate-200 transition hover:bg-white/10"
             >
               Start Translation

@@ -5,6 +5,9 @@ import RemoteListenerPage from "./pages/RemoteListenerPage";
 import TextTranslation from "./pages/TextTranslation";
 import Dashboard from "./pages/Dashboard";
 import { useState } from "react";
+import Listening from "./pages/Listening";
+import LiveClassroom from "./pages/LiveClassroom";
+import StudentClassroom from "./pages/StudentClassroom";
 import CommunicateRoom from "./pages/CommunicateRoom";
 import {
   ArrowRight,
@@ -25,7 +28,15 @@ function App() {
   if (window.location.pathname === "/translator") {
   return <Translator />;
 }
-
+if (window.location.pathname === "/listening") {
+  return <Listening />;
+}
+if (window.location.pathname === "/live-classroom") {
+  return <LiveClassroom />;
+}
+if (window.location.pathname === "/student-classroom") {
+  return <StudentClassroom />;
+}
 if (window.location.pathname === "/text-translation") {
   return <TextTranslation />;
 }
